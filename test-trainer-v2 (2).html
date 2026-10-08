@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Тренажёр тестов</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{--bg:#eef1f6;--card:#fff;--ink:#1c2433;--mute:#66728a;--line:#d9dfea;--acc:#2f5fd0;--ok:#1f9d63;--okbg:#e3f6ec;--bad:#d64545;--badbg:#fdeaea;--gray:#cfd6e3}
+@media(prefers-color-scheme:dark){:root{--bg:#121722;--card:#1b2230;--ink:#e8ecf5;--mute:#93a0b8;--line:#2d3649;--acc:#6f95ff;--okbg:#14352a;--badbg:#3a1d21;--gray:#3a455c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px}
+h1{font-size:26px;margin:8px 0 4px}h2{font-size:19px;margin:0 0 10px}
+.mute{color:var(--mute);font-size:14px}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:11px 18px;transition:.15s}
+button:hover:not(:disabled){border-color:var(--acc)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.drop{border:2px dashed var(--gray);border-radius:12px;padding:28px;text-align:center;cursor:pointer}
+.drop.over{border-color:var(--acc);background:var(--okbg)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+input[type=number]{width:90px;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.msg{padding:10px 14px;border-radius:10px;background:var(--badbg);color:var(--bad);margin-top:10px;font-size:14px}
+.msg.info{background:var(--okbg);color:var(--ok)}
+.nav{display:flex;flex-wrap:wrap;gap:6px}
+.nb{width:38px;height:38px;padding:0;border-radius:9px;background:var(--gray);color:var(--ink);border:2px solid transparent;font-weight:600;font-size:14px}
+.nb.ok{background:var(--ok);color:#fff}.nb.bad{background:var(--bad);color:#fff}
+.nb.cur{border-color:var(--ink);box-shadow:0 0 0 2px var(--card) inset}
+.stars{color:#e0a100;letter-spacing:2px}
+.qt{font-size:19px;font-weight:600;margin:6px 0 16px;white-space:pre-wrap}
+.opt{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;margin-bottom:9px;padding:13px 14px;border-width:2px}
+.mark{flex:none;width:22px;height:22px;border:2px solid var(--mute);margin-top:1px;display:grid;place-items:center;font-size:14px;color:#fff}
+.mark.r{border-radius:50%}.mark.c{border-radius:6px}
+.opt.sel{border-color:var(--acc)}.opt.sel .mark{background:var(--acc);border-color:var(--acc)}
+.opt.right{background:var(--okbg);border-color:var(--ok)}.opt.right .mark{background:var(--ok);border-color:var(--ok)}
+.opt.wrong{background:var(--badbg);border-color:var(--bad)}.opt.wrong .mark{background:var(--bad);border-color:var(--bad)}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+.tools button{padding:8px 13px;font-size:14px}
+.sup{background:linear-gradient(90deg,#7b3fe4,#e0467c);color:#fff;border:0;font-weight:600}
+.sup:hover:not(:disabled){filter:brightness(1.1)}
+.foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.big{font-size:44px;font-weight:700}
+.err{border-left:4px solid var(--bad);padding:8px 12px;margin:10px 0;background:var(--badbg);border-radius:6px;font-size:14px}
+.hide{display:none}
+textarea,.oprow input[type=text]{font:inherit;width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+textarea{resize:vertical;margin:8px 0}
+.oprow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.rt{flex:none;display:flex;gap:6px;align-items:center;padding:8px 10px;border:2px solid var(--line);border-radius:10px;cursor:pointer;font-size:14px;user-select:none}
+.rt.on{border-color:var(--ok);background:var(--okbg);color:var(--ok);font-weight:600}
+.oprow button{padding:8px 11px;flex:none}
+.st{font-size:13px}.st.g{color:var(--ok)}.st.r{color:var(--bad)}
+.dq button.dl{color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+const $=s=>document.querySelector(s);
+const app=$('#app');
+let round=1,fullQuiz=[],tr={},trOn={},all=[],skipped=0,quiz=[],ans=[],cur=0,sel=new Set();
+
+const esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const stars=n=>'★'.repeat(Math.min(n,3));
+
+function parse(text){
+  const out=[];let skip=0;
+  text.split(/<question>/i).slice(1).forEach(chunk=>{
+    const parts=chunk.split(/<(variantright|variant)>/i);
+    const q=parts[0].replace(/\s+/g,' ').trim();
+    const opts=[];
+    for(let i=1;i<parts.length;i+=2){
+      const t=(parts[i+1]||'').replace(/\s+/g,' ').trim();
+      if(t)opts.push({t,right:parts[i].toLowerCase()==='variantright'});
+    }
+    if(!q||opts.length<2){skip++;return}
+    if(!opts.some(o=>o.right))opts[0].right=true;
+    const n=opts.filter(o=>o.right).length;
+    if(n===opts.length){skip++;return}
+    out.push({q,opts,n});
+  });
+  return{out,skip};
+}
+
+function start(){
+  app.innerHTML=`<h1>Тренажёр тестов</h1><p class="mute">Загрузите .docx с вопросами в тегах &lt;question&gt;, &lt;variant&gt;, &lt;variantright&gt;.</p>
+  <div class="row" style="margin:12px 0"><button class="sup" id="dzb" style="padding:11px 18px">✏️ Дизайнер тестов</button><span class="mute">создать или собрать тест вручную</span></div>
+  <div class="card"><label class="drop" id="drop" for="file">Нажмите или перетащите .docx сюда<br><span class="mute" id="fname"></span></label>
+  <input type="file" id="file" accept=".docx" class="hide">
+  <div id="msg"></div>
+  <div class="row ${all.length?'':'hide'}" id="setup" style="margin-top:16px">
+    <span>Вопросов в файле: <b id="total">${all.length}</b>. В тесте:</span>
+    <input type="number" id="cnt" min="1" max="${all.length}" value="${Math.min(40,all.length)}">
+    <button id="allb">Все</button>
+    <button class="pri" id="go">Начать тест</button>
+  </div></div>`;
+  $('#dzb').onclick=designer;
+  const f=$('#file'),d=$('#drop');
+  f.onchange=()=>f.files[0]&&load(f.files[0]);
+  d.ondragover=e=>{e.preventDefault();d.classList.add('over')};
+  d.ondragleave=()=>d.classList.remove('over');
+  d.ondrop=e=>{e.preventDefault();d.classList.remove('over');e.dataTransfer.files[0]&&load(e.dataTransfer.files[0])};
+  if(all.length){$('#allb').onclick=()=>$('#cnt').value=all.length;$('#go').onclick=begin}
+}
+
+function msg(t,info){$('#msg').innerHTML=`<div class="msg ${info?'info':''}">${esc(t)}</div>`}
+
+async function load(file){
+  if(!/\.docx$/i.test(file.name))return msg('Нужен файл формата .docx');
+  if(typeof mammoth==='undefined')return msg('Не загрузилась библиотека mammoth.js. Проверьте интернет.');
+  try{
+    const buf=await file.arrayBuffer();
+    const r=await mammoth.extractRawText({arrayBuffer:buf});
+    if(!r.value.trim())return msg('Файл пустой');
+    const p=parse(r.value);
+    if(!p.out.length)return msg('Вопросы не найдены. Проверьте теги в файле.');
+    all=p.out;skipped=p.skip;start();
+    $('#fname').textContent=file.name;
+    if(skipped)msg(`Пропущено вопросов с ошибками в разметке: ${skipped}`);
+  }catch(e){msg('Не удалось прочитать файл: '+e.message)}
+}
+
+function begin(){
+  let n=parseInt($('#cnt').value)||1;n=Math.max(1,Math.min(n,all.length));
+  quiz=shuffle(all).slice(0,n).map(x=>({...x,opts:shuffle(x.opts)}));
+  fullQuiz=quiz;round=1;
+  ans=quiz.map(()=>null);tr={};trOn={};cur=0;sel=new Set();show();
+}
+
+function show(){
+  const q=quiz[cur],a=ans[cur],multi=q.n>1;
+  const done=ans.filter(Boolean).length;
+  const nav=quiz.map((_,i)=>`<button class="nb ${ans[i]?(ans[i].ok?'ok':'bad'):''} ${i===cur?'cur':''}" data-i="${i}" aria-label="Вопрос ${i+1}">${i+1}</button>`).join('');
+  const T=trOn[cur]&&tr[cur];
+  const opts=q.opts.map((o,i)=>{
+    let c='';
+    if(a){if(o.right)c='right';else if(a.sel.includes(i))c='wrong'}
+    else if(sel.has(i))c='sel';
+    const on=a?(o.right||a.sel.includes(i)):sel.has(i);
+    return `<button class="opt ${c}" data-o="${i}" ${a?'disabled':''} style="${a?'opacity:1':''}"><span class="mark ${multi?'c':'r'}">${on?(multi?'✓':'●'):''}</span><span>${esc(T?T.o[i]:o.t)}${T?`<br><span class="mute">${esc(o.t)}</span>`:''}</span></button>`;
+  }).join('');
+  app.innerHTML=`<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><span class="mute">${round>1?'Работа над ошибками, раунд '+round+' · ':''}Вопрос ${cur+1} из ${quiz.length} · отвечено ${done}</span><button id="home0" style="padding:7px 12px;font-size:14px" title="Вернуться на главный экран">🏠 Главная</button></div><div class="nav">${nav}</div></div>
+  <div class="card"><div class="row" style="justify-content:space-between"><span class="stars" title="Сложность">${stars(q.n)}</span><span class="mute">${multi?'Выберите все верные ответы':'Один верный ответ'}</span></div>
+  <div class="qt">${cur+1}. ${esc(T?T.q:q.q)}</div>${T?`<div class="mute" style="margin:-10px 0 14px">${esc(q.q)}</div>`:''}${opts}
+  ${a?`<div class="msg ${a.ok?'info':''}">${a.ok?'Верно':'Неверно'}</div>`:''}
+  <div class="tools" style="margin-top:14px">
+    <button id="lupa" title="Найти этот вопрос в Google">🔍 Лупа</button>
+    <button class="sup" id="sup" title="Google-запрос: вопрос и все варианты с просьбой разобрать каждый">✨ Сверхпоиск</button>
+    <button id="ai" title="Тот же запрос в режиме ИИ Google">Режим ИИ</button>
+    <button id="trb" title="Перевести вопрос и варианты на русский">🌐 ${T?'Оригинал':'Перевести'}</button>
+  </div></div>
+  <div class="foot"><button id="back" ${cur===0?'disabled':''}>← Назад</button>
+  ${multi&&!a?`<button class="pri" id="ok" ${sel.size?'':'disabled'}>Ответить</button>`:''}
+  ${cur<quiz.length-1?`<button class="pri" id="next">Следующий вопрос →</button>`:`<button class="pri" id="fin">Завершить</button>`}</div>`;
+  document.querySelectorAll('.nb').forEach(b=>b.onclick=()=>{cur=+b.dataset.i;sel=new Set();show()});
+  document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>pick(+b.dataset.o));
+  $('#home0').onclick=()=>{if(!ans.some(Boolean)||confirm('Выйти на главный экран? Прогресс теста будет потерян.'))start()};
+  $('#back').onclick=()=>{if(cur>0){cur--;sel=new Set();show()}};
+  const nx=$('#next');if(nx)nx.onclick=()=>{cur++;sel=new Set();show()};
+  const fn=$('#fin');if(fn)fn.onclick=finish;
+  const ok=$('#ok');if(ok)ok.onclick=submit;
+  $('#trb').onclick=()=>toggleTr(cur);
+  $('#lupa').onclick=()=>g(q.q+' ответ на русском');
+  $('#sup').onclick=()=>g(prompt_(q));
+  $('#ai').onclick=()=>g(prompt_(q),true);
+}
+
+function prompt_(q){
+  let t=`Вопрос: ${q.q}\nВарианты ответа:\n`+q.opts.map((o,i)=>`${i+1}) ${o.t}`).join('\n')+
+  `\nОтветь на русском языке, даже если вопрос написан на другом языке. Объясни, какой вариант верный, а какие нет, и почему. Разбери каждый вариант отдельно.`;
+  return t.length>1500?t.slice(0,1500):t;
+}
+async function tx(t){
+  const r=await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ru&dt=t&q='+encodeURIComponent(t));
+  if(!r.ok)throw new Error(r.status);
+  const d=await r.json();return d[0].map(x=>x[0]).join('');
+}
+async function toggleTr(i){
+  if(trOn[i]){trOn[i]=false;return show()}
+  if(tr[i]){trOn[i]=true;return show()}
+  const q=quiz[i],b=$('#trb');b.disabled=true;b.textContent='Перевожу…';
+  try{
+    const res=await Promise.all([q.q,...q.opts.map(o=>o.t)].map(tx));
+    tr[i]={q:res[0],o:res.slice(1)};trOn[i]=true;
+  }catch(e){
+    g2('https://translate.google.com/?sl=auto&tl=ru&op=translate&text='+encodeURIComponent(q.q+'\n\n'+q.opts.map((o,k)=>(k+1)+') '+o.t).join('\n')));
+  }
+  if(i===cur)show();
+}
+function g2(u){window.open(u,'_blank','noopener')}
+function g(q,ai){window.open('https://www.google.com/search?q='+encodeURIComponent(q)+(ai?'&udm=50':''),'_blank','noopener')}
+
+function pick(i){
+  const q=quiz[cur];
+  if(q.n===1){submitSel([i])}
+  else{sel.has(i)?sel.delete(i):sel.add(i);show()}
+}
+function submit(){submitSel([...sel])}
+function submitSel(s){
+  const q=quiz[cur];
+  const right=q.opts.map((o,i)=>o.right?i:-1).filter(i=>i>=0);
+  const ok=s.length===right.length&&s.every(i=>right.includes(i));
+  ans[cur]={sel:s,ok};sel=new Set();show();
+}
+
+function finish(){
+  const okN=ans.filter(a=>a&&a.ok).length,bad=ans.filter(a=>a&&!a.ok).length,skip=ans.length-okN-bad;
+  const pct=Math.round(okN/quiz.length*100);
+  const errs=quiz.map((q,i)=>({q,i,a:ans[i]})).filter(x=>!x.a||!x.a.ok).map(x=>`<div class="err"><b>${x.i+1}. ${esc(x.q.q)}</b><br>${x.a?'':'<i>Не отвечен.</i> '}Верно: ${esc(x.q.opts.filter(o=>o.right).map(o=>o.t).join('; '))}</div>`).join('');
+  const wrongList=quiz.filter((q,i)=>!ans[i]||!ans[i].ok);
+  const fresh=arr=>shuffle(arr).map(x=>({...x,opts:shuffle(x.opts)}));
+  app.innerHTML=`<h1>Результат${round>1?', раунд '+round:''}</h1><div class="card"><div class="big">${pct}%</div>
+  <p>Верно: <b>${okN}</b> · Неверно: <b>${bad}</b> · Без ответа: <b>${skip}</b> · Всего: ${quiz.length}</p>
+  ${wrongList.length?`<p>Повторите вопросы, где были ошибки или пропуски: они выпадут в новом порядке, а варианты ответов перемешаются.</p>`:`<p><b>Ошибок нет. Тест пройден без единой ошибки!</b></p>`}
+  <div class="row">${wrongList.length?`<button class="pri" id="redo">🔁 Работа над ошибками (${wrongList.length})</button>`:''}${round>1?'<button id="full">Весь тест заново</button>':''}<button id="again">Пройти заново</button><button id="home">В начало</button><button id="rev">Вернуться к вопросам</button></div></div>
+  ${errs?`<div class="card"><h2>Ошибки и пропуски</h2>${errs}</div>`:''}`;
+  $('#again').onclick=()=>{quiz=shuffle(quiz).map(x=>({...x,opts:shuffle(x.opts)}));ans=quiz.map(()=>null);tr={};trOn={};cur=0;show()};
+  const rd=$('#redo');if(rd)rd.onclick=()=>{round++;quiz=fresh(wrongList);ans=quiz.map(()=>null);tr={};trOn={};cur=0;sel=new Set();show()};
+  const fl=$('#full');if(fl)fl.onclick=()=>{round=1;quiz=fresh(fullQuiz);ans=quiz.map(()=>null);tr={};trOn={};cur=0;sel=new Set();show()};
+  $('#home').onclick=start;
+  $('#rev').onclick=()=>{cur=0;show()};
+}
+/* ===== Дизайнер тестов ===== */
+let dz=[],imp=[];
+const blankOpts=()=>[0,1,2,3].map(()=>({t:'',right:false}));
+const blankQ=()=>({q:'',opts:blankOpts()});
+const clean=t=>t.replace(/\s+/g,' ').trim();
+
+function parseLoose(t){
+  if(/<question>/i.test(t)){
+    return t.split(/<question>/i).slice(1).map(ch=>{
+      const p=ch.split(/<(variantright|variant)>/i),o=[];
+      for(let i=1;i<p.length;i+=2){const x=clean(p[i+1]||'');if(x)o.push({t:x,right:p[i].toLowerCase()==='variantright'})}
+      if(o.length&&!o.some(x=>x.right))o[0].right=true;
+      return{q:clean(p[0]),opts:o.length<2?blankOpts():o};
+    }).filter(x=>x.q);
+  }
+  return t.split(/\r?\n/).map(l=>clean(l.replace(/^\s*\d+[.)]\s*/,''))).filter(Boolean).map(q=>({q,opts:blankOpts()}));
+}
+function problem(q){
+  const o=q.opts.filter(x=>x.t.trim());
+  if(!q.q.trim())return 'нет текста вопроса';
+  if(o.length<2)return 'нужно минимум 2 варианта';
+  if(!o.some(x=>x.right))return 'не отмечен верный ответ';
+  if(o.every(x=>x.right))return 'нужен хотя бы один неверный вариант';
+  return '';
+}
+function stHtml(q){const p=problem(q);return p?`<span class="st r">⚠ ${p}</span>`:'<span class="st g">✓ готов</span>'}
+function dmsg(t,ok){$('#dmsg').innerHTML=`<div class="msg ${ok?'info':''}">${t}</div>`}
+
+function designer(){
+  if(!dz.length)dz.push(blankQ());
+  app.innerHTML=`<div class="row" style="justify-content:space-between"><h1>Дизайнер тестов</h1><button id="dhome">🏠 Главная</button></div>
+  <p class="mute">Добавляйте вопросы вручную или загрузите файл и возьмите нужную часть. Отметьте «верный» у правильных вариантов (их может быть несколько).</p>
+  <div class="card"><h2>Загрузить вопросы</h2>
+    <input type="file" id="dfile" accept=".docx,.txt">
+    <textarea id="dpaste" rows="3" placeholder="Или вставьте текст: по одному вопросу на строке либо в формате с тегами &lt;question&gt; / &lt;variant&gt; / &lt;variantright&gt;"></textarea>
+    <div class="row"><button id="dread">Прочитать вставленный текст</button>${all.length?`<button id="dtake">Взять вопросы из тренажёра (${all.length})</button>`:''}</div>
+    <div id="dimp" style="margin-top:10px"></div></div>
+  <div id="dlist"></div>
+  <div class="row" style="margin-bottom:14px"><button class="pri" id="dadd">+ Новый вопрос</button></div>
+  <div class="card"><h2>Сохранить</h2><div class="row">
+    <button class="pri" id="dcopy">Копировать текст</button><button id="dtxt">Скачать .txt</button><button id="ddocx">Скачать .docx</button><button class="sup" id="dplay">▶ Пройти этот тест</button></div>
+    <div id="dmsg"></div></div>`;
+  $('#dhome').onclick=start;
+  $('#dadd').onclick=()=>{dz.push(blankQ());renderList();const c=document.querySelectorAll('.dq');c[c.length-1].scrollIntoView({behavior:'smooth'});c[c.length-1].querySelector('textarea').focus()};
+  $('#dfile').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+    try{let t;
+      if(/\.docx$/i.test(f.name)){if(typeof mammoth==='undefined')return dmsg('Не загрузилась библиотека mammoth.js. Проверьте интернет.');t=(await mammoth.extractRawText({arrayBuffer:await f.arrayBuffer()})).value}
+      else t=await f.text();
+      showImp(parseLoose(t));
+    }catch(err){dmsg('Не удалось прочитать файл: '+esc(err.message))}};
+  $('#dread').onclick=()=>showImp(parseLoose($('#dpaste').value));
+  const tk=$('#dtake');if(tk)tk.onclick=()=>showImp(all.map(x=>({q:x.q,opts:x.opts.map(o=>({...o}))})));
+  $('#dcopy').onclick=copyOut;
+  $('#dtxt').onclick=()=>{const t=build();if(t)save(new Blob([t],{type:'text/plain;charset=utf-8'}),'test.txt')};
+  $('#ddocx').onclick=async()=>{const t=build();if(!t)return;
+    if(typeof JSZip==='undefined')return dmsg('Не загрузилась библиотека JSZip. Проверьте интернет или скачайте .txt.');
+    save(await mkDocx(t),'test.docx')};
+  $('#dplay').onclick=()=>{
+    if(!build())return;
+    all=dz.map(q=>{const o=q.opts.filter(x=>x.t.trim()).map(x=>({t:clean(x.t),right:x.right}));return{q:clean(q.q),opts:o,n:o.filter(x=>x.right).length}});
+    start();msg('Тест из дизайнера загружен. Выберите количество вопросов и нажмите «Начать тест».',true)};
+  const L=$('#dlist');
+  L.addEventListener('input',e=>{
+    const t=e.target,card=t.closest('.dq');if(!card)return;
+    const q=dz[+card.dataset.q],f=t.dataset.f,row=t.closest('.oprow');
+    if(f==='q')q.q=t.value;
+    else if(f==='t')q.opts[+row.dataset.o].t=t.value;
+    else if(f==='r'){q.opts[+row.dataset.o].right=t.checked;t.closest('.rt').classList.toggle('on',t.checked)}
+    card.querySelector('.stw').innerHTML=stHtml(q);
+  });
+  L.addEventListener('click',e=>{
+    const b=e.target.closest('button[data-a]');if(!b)return;
+    const card=b.closest('.dq'),i=+card.dataset.q,q=dz[i],a=b.dataset.a;
+    if(a==='delq'){if(q.q.trim()&&!confirm('Удалить этот вопрос?'))return;dz.splice(i,1);if(!dz.length)dz.push(blankQ());renderList()}
+    else if(a==='delo'){if(q.opts.length<=2)return dmsg('В вопросе должно остаться минимум 2 варианта.');q.opts.splice(+b.closest('.oprow').dataset.o,1);renderList()}
+    else if(a==='addo'){q.opts.push({t:'',right:false});renderList();const ins=document.querySelectorAll('.dq')[i].querySelectorAll('input[data-f=t]');ins[ins.length-1].focus()}
+  });
+  renderList();
+}
+
+function renderList(){
+  $('#dlist').innerHTML=dz.map((q,i)=>`<div class="card dq" data-q="${i}">
+    <div class="row" style="justify-content:space-between"><b>Вопрос ${i+1}</b><span class="stw">${stHtml(q)}</span><button class="dl" data-a="delq">🗑 Удалить вопрос</button></div>
+    <textarea data-f="q" rows="2" placeholder="Текст вопроса">${esc(q.q)}</textarea>
+    ${q.opts.map((o,j)=>`<div class="oprow" data-o="${j}"><label class="rt ${o.right?'on':''}" title="Отметить как верный ответ"><input type="checkbox" data-f="r" ${o.right?'checked':''}>верный</label><input type="text" data-f="t" placeholder="Вариант ${j+1}" value="${esc(o.t)}"><button data-a="delo" title="Удалить вариант" aria-label="Удалить вариант">✕</button></div>`).join('')}
+    <button data-a="addo">+ Вариант</button></div>`).join('');
+}
+
+function showImp(list){
+  imp=list;const b=$('#dimp');
+  if(!list.length){b.innerHTML='<div class="msg">Вопросы не найдены. Проверьте файл или текст.</div>';return}
+  b.innerHTML=`Найдено вопросов: <b>${list.length}</b>. Взять с <input type="number" id="ifrom" min="1" max="${list.length}" value="1"> по <input type="number" id="ito" min="1" max="${list.length}" value="${list.length}"> <button class="pri" id="iadd">Добавить в дизайнер</button>
+  <div class="mute" style="margin-top:6px">Пример: с 1 по 20, или с 20 по ${list.length} (до конца).</div>`;
+  $('#iadd').onclick=()=>{
+    let a=Math.max(1,parseInt($('#ifrom').value)||1),z=Math.min(list.length,parseInt($('#ito').value)||list.length);
+    if(a>z)return dmsg('Начало диапазона больше конца.');
+    const part=list.slice(a-1,z).map(x=>({q:x.q,opts:x.opts.map(o=>({...o}))}));
+    if(dz.length===1&&!dz[0].q.trim()&&dz[0].opts.every(o=>!o.t.trim()))dz=[];
+    dz=dz.concat(part);renderList();dmsg(`Добавлено вопросов: ${part.length} (с ${a} по ${z}).`,true);
+  };
+}
+
+function build(){
+  const bad=dz.map((q,i)=>problem(q)?`№${i+1}: ${problem(q)}`:'').filter(Boolean);
+  if(bad.length){dmsg('Исправьте вопросы:<br>'+bad.map(esc).join('<br>'));return ''}
+  return dz.map(q=>'<question>'+clean(q.q)+'\n'+q.opts.filter(o=>o.t.trim()).map(o=>(o.right?'<variantright>':'<variant>')+clean(o.t)).join('\n')).join('\n\n')+'\n';
+}
+async function copyOut(){
+  const t=build();if(!t)return;
+  try{await navigator.clipboard.writeText(t)}
+  catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}
+  dmsg(`Скопировано вопросов: ${dz.length}. Вставьте в Word или блокнот.`,true);
+}
+function save(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);dmsg(`Файл ${name} сохранён.`,true)}
+async function mkDocx(text){
+  const Z=new JSZip(),x=t=>t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])),H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const paras=text.split('\n').map(l=>l?`<w:p><w:r><w:t xml:space="preserve">${x(l)}</w:t></w:r></w:p>`:'<w:p/>').join('');
+  Z.file('[Content_Types].xml',H+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  Z.file('_rels/.rels',H+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  Z.file('word/document.xml',H+`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paras}</w:body></w:document>`);
+  return Z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+}
+start();
+</script>
+</body>
+</html>
